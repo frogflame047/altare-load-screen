@@ -441,6 +441,96 @@
   }
   .footer-left  { display: flex; gap: 1.5em; }
   .footer-right { letter-spacing: 0.15em; }
+
+  /* === CHAPTER TWO: INFECTION OVERLAY === */
+  :root {
+    --infect:        #ff2a3c;
+    --infect-dim:    #aa1a28;
+    --infect-purple: #8a2be2;
+    --infect-glow:   rgba(255,42,60,0.55);
+  }
+
+  #infectionCanvas {
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+    z-index: 40;
+    pointer-events: none;
+    mix-blend-mode: screen;
+  }
+
+  #infectionCore {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    width: clamp(140px, 14vw, 220px);
+    height: clamp(140px, 14vw, 220px);
+    z-index: 41;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #infectionCore svg { width: 100%; height: 100%; overflow: visible; }
+  .core-ring-outer { transform-origin: center; animation: ringSpin 18s linear infinite; }
+  .core-ring-inner { transform-origin: center; animation: ringSpin 11s linear infinite reverse; }
+  @keyframes ringSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  .core-pulse { transform-origin: center; animation: corePulse 2.6s ease-in-out infinite; }
+  @keyframes corePulse {
+    0%,100% { opacity: 0.55; transform: scale(0.94); }
+    50%     { opacity: 1;    transform: scale(1.04); }
+  }
+
+  .core-label {
+    position: absolute;
+    top: 100%; left: 50%;
+    transform: translateX(-50%);
+    margin-top: 0.6em;
+    text-align: center;
+    white-space: nowrap;
+    font-size: 0.62em;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+  .core-label .l1 { color: var(--infect); text-shadow: 0 0 8px var(--infect-glow); }
+  .core-label .l2 { color: var(--green-muted); margin-top: 0.2em; font-size: 0.85em; letter-spacing: 0.12em; }
+
+  .glitch-text { position: relative; }
+  .glitch-text.scrambling { color: var(--infect); text-shadow: 0 0 6px var(--infect-glow); }
+
+  @keyframes rgbSplit {
+    0%   { text-shadow: 0 0 0 transparent; transform: translate(0,0); filter: none; }
+    15%  { text-shadow: -4px 0 var(--infect), 4px 0 var(--green); transform: translate(-3px,0); }
+    30%  { text-shadow: 4px 0 var(--infect-purple), -4px 0 var(--green); transform: translate(3px,-1px); filter: hue-rotate(20deg) saturate(1.4); }
+    45%  { text-shadow: -3px 0 var(--infect), 3px 0 var(--green); transform: translate(0,2px); }
+    60%  { text-shadow: 3px 0 var(--infect), -3px 0 var(--green); transform: translate(-2px,0); filter: contrast(1.3); }
+    75%  { text-shadow: -2px 0 var(--infect-purple), 2px 0 var(--green); transform: translate(2px,1px); }
+    90%  { text-shadow: 1px 0 var(--infect), -1px 0 var(--green); transform: translate(0,-1px); filter: none; }
+    100% { text-shadow: 0 0 0 transparent; transform: translate(0,0); filter: none; }
+  }
+  .glitch-burst { animation: rgbSplit 0.4s steps(2,end); }
+
+  @keyframes screenCorrupt { 0%,100% { opacity: 0; } 50% { opacity: 1; } }
+  #corruptFlash {
+    position: fixed; inset: 0;
+    z-index: 60;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center, rgba(255,42,60,0.3) 0%, rgba(138,43,226,0.16) 45%, transparent 78%);
+    opacity: 0;
+  }
+  #corruptFlash.active { animation: screenCorrupt 0.3s ease-in-out; }
+
+  #staticNoise {
+    position: fixed; inset: 0;
+    z-index: 56;
+    pointer-events: none;
+    opacity: 0;
+    mix-blend-mode: overlay;
+    image-rendering: pixelated;
+  }
+  #staticNoise.active { opacity: 0.85; }
+
+  .sys-row-val.infect { color: var(--infect); text-shadow: 0 0 6px var(--infect-glow); }
 </style>
 </head>
 <body>
@@ -466,9 +556,9 @@
     <div class="bos-seal-container">
       <img class="bos-seal" src="./bos_logo.png" alt="Brotherhood of Steel">
       <div class="seal-text">
-        <div class="seal-title">Chapter - One</div>
+        <div class="seal-title">Chapter - Two</div>
         <div class="seal-motto">"Ad Victoriam" — Through Victory, We Endure</div>
-        <div class="seal-class">CLEARANCE LEVEL: INITIATE+ &nbsp;|&nbsp; SECTOR: TEXAS &nbsp;|&nbsp; CHAPTER: RED PLAINS</div>
+        <div class="seal-class">CLEARANCE LEVEL: INITIATE+ &nbsp;|&nbsp; SECTOR: TEXAS &nbsp;|&nbsp; CHAPTER: <span class="glitch-text" id="zoneText">RED PLAINS</span></div>
       </div>
     </div>
 
@@ -501,6 +591,7 @@
       <div class="sys-row"><span class="sys-row-key">SESSION KEY</span><span class="sys-row-val" id="sessKey">GENERATING</span></div>
       <div class="sys-row"><span class="sys-row-key">SECURE CHANNEL</span><span class="sys-row-val warn" id="chanStatus">ESTABLISHING</span></div>
       <div class="sys-row"><span class="sys-row-key">PLAYER SLOT</span><span class="sys-row-val ok">RESERVED</span></div>
+      <div class="sys-row"><span class="sys-row-key">ANOMALY SCAN</span><span class="sys-row-val ok" id="anomalyStatus">CLEAR</span></div>
     </div>
 
   </div>
@@ -564,6 +655,38 @@
 </div>
 
 <audio id="audioPlayer" preload="auto" autoplay crossorigin="anonymous"></audio>
+
+<canvas id="infectionCanvas"></canvas>
+<div id="infectionCore">
+  <svg viewBox="0 0 200 200">
+    <defs>
+      <radialGradient id="coreGrad" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#ff5566" stop-opacity="0.95"/>
+        <stop offset="55%" stop-color="#aa1a28" stop-opacity="0.6"/>
+        <stop offset="100%" stop-color="#aa1a28" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <g class="core-ring-outer">
+      <circle cx="100" cy="100" r="92" fill="none" stroke="#ff2a3c" stroke-opacity="0.35" stroke-width="1" stroke-dasharray="4 10"/>
+    </g>
+    <g class="core-ring-inner">
+      <circle cx="100" cy="100" r="68" fill="none" stroke="#8a2be2" stroke-opacity="0.4" stroke-width="1" stroke-dasharray="2 6"/>
+    </g>
+    <g class="core-pulse">
+      <circle cx="100" cy="100" r="46" fill="url(#coreGrad)"/>
+      <path d="M100,60 C112,78 138,82 140,100 C138,118 112,122 100,140 C88,122 62,118 60,100 C62,82 88,78 100,60 Z"
+            fill="none" stroke="#ff2a3c" stroke-width="1.4" stroke-opacity="0.85"/>
+      <path d="M100,74 C108,86 124,88 126,100 C124,112 108,114 100,126 C92,114 76,112 74,100 C76,88 92,86 100,74 Z"
+            fill="none" stroke="#ffaa66" stroke-width="0.8" stroke-opacity="0.6"/>
+    </g>
+  </svg>
+  <div class="core-label">
+    <div class="l1 glitch-text" id="coreLabel1">CARRION.SYS</div>
+    <div class="l2" id="coreLabel2">UNAUTHORIZED PROCESS — ACTIVE</div>
+  </div>
+</div>
+<div id="corruptFlash"></div>
+<canvas id="staticNoise"></canvas>
 
 <script>
 // ============================================================
@@ -845,7 +968,10 @@ const LOG_MESSAGES = [
   ['AUDIO', 'Loading ambient soundscape tables',                              'ok'],
   ['ENT',   'Spawning persistent entities from lastKnownState snapshot',      'ok'],
   ['WARN',  'Node proximity warning: Hostile contacts — SECTOR 7-G',         'warn'],
+  ['SCAN',  'Biosignature anomaly flagged — designation: CARRION',           'warn'],
+  ['SYS',   'Data integrity check... 2 sectors corrupted',                   'err'],
   ['AUTH',  'Session key validated — ACCESS GRANTED',                         'ok'],
+  ['NET',   'Unidentified packet signature intercepted — logging',          'warn'],
   ['SYS',   'Secure channel established. Welcome, Initiate.',                 'ok'],
   ['NET',   'Syncing player data from persistence layer...',                  'ok'],
   ['PLUG',  'Loading plugin: bos_ui (Codex) — OK',                           'ok'],
@@ -901,6 +1027,181 @@ function forceFullscreen() {
 }
 forceFullscreen();
 window.addEventListener('resize', forceFullscreen);
+
+// --- CH2: Infection tendrils ---
+const infCanvas = document.getElementById('infectionCanvas');
+const infCtx = infCanvas.getContext('2d');
+let infSegments = [];
+let infW = 0, infH = 0;
+
+function growVein(x, y, tx, ty, depth, maxDepth, segs) {
+  if (depth >= maxDepth) return;
+  const dx = tx - x, dy = ty - y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const stepLen = Math.max(14, dist / (maxDepth - depth + 2));
+  const jitter = (Math.random() - 0.5) * stepLen * 1.1;
+  const nx = x + (dx / dist) * stepLen + (-dy / dist) * jitter;
+  const ny = y + (dy / dist) * stepLen + (dx / dist) * jitter;
+  segs.push({ x1: x, y1: y, x2: nx, y2: ny, depth: depth, maxDepth: maxDepth });
+  if (Math.random() < 0.22 && depth > 2 && depth < maxDepth - 3) {
+    const bx = nx + (Math.random() - 0.5) * 90;
+    const by = ny + (Math.random() - 0.5) * 90;
+    growVein(nx, ny, bx, by, depth + 3, maxDepth, segs);
+  }
+  growVein(nx, ny, tx, ty, depth + 1, maxDepth, segs);
+}
+
+function buildTendrils() {
+  infW = window.innerWidth; infH = window.innerHeight;
+  infCanvas.width = infW; infCanvas.height = infH;
+  const segs = [];
+  const cx = infW / 2, cy = infH / 2;
+  const origins = [
+    [0,0], [infW*0.5,0], [infW,0],
+    [0,infH*0.5], [infW,infH*0.5],
+    [0,infH], [infW*0.5,infH], [infW,infH]
+  ];
+  origins.forEach(function(o) {
+    for (let i = 0; i < 2; i++) {
+      const tx = cx + (Math.random() - 0.5) * 80;
+      const ty = cy + (Math.random() - 0.5) * 80;
+      growVein(o[0], o[1], tx, ty, 0, 15, segs);
+    }
+  });
+  infSegments = segs;
+}
+
+let infProgress = 0;
+function drawTendrils() {
+  infCtx.clearRect(0, 0, infW, infH);
+  const visibleCount = Math.floor(infSegments.length * Math.min(infProgress, 1));
+  for (let i = 0; i < visibleCount; i++) {
+    const s = infSegments[i];
+    const t = s.depth / s.maxDepth;
+    const isPurple = s.depth % 5 === 0;
+    const rgb = isPurple ? '138,43,226' : '255,42,60';
+    infCtx.strokeStyle = 'rgba(' + rgb + ',' + (0.5 - t * 0.28) + ')';
+    infCtx.lineWidth = Math.max(0.5, 2.2 - t * 1.8);
+    infCtx.shadowColor = 'rgba(' + rgb + ',0.55)';
+    infCtx.shadowBlur = 5;
+    infCtx.beginPath();
+    infCtx.moveTo(s.x1, s.y1);
+    infCtx.lineTo(s.x2, s.y2);
+    infCtx.stroke();
+  }
+  infCtx.shadowBlur = 0;
+  infProgress += 0.00021;
+  if (infProgress > 1.3) {
+    infProgress = 0;
+    buildTendrils();
+  }
+  requestAnimationFrame(drawTendrils);
+}
+buildTendrils();
+drawTendrils();
+window.addEventListener('resize', buildTendrils);
+
+// --- CH2: Glitch / corruption bursts ---
+const glitchTargets = ['.logo-title', '.sys-table', '#logbar', '.seal-text'];
+const staticCanvas = document.getElementById('staticNoise');
+const staticCtx = staticCanvas.getContext('2d');
+const staticSmall = document.createElement('canvas');
+staticSmall.width = 160; staticSmall.height = 90;
+const staticSmallCtx = staticSmall.getContext('2d');
+
+function burstStatic() {
+  const w = 160, h = 90;
+  const imgData = staticSmallCtx.createImageData(w, h);
+  for (let i = 0; i < imgData.data.length; i += 4) {
+    const v = Math.random() * 255;
+    const tint = Math.random();
+    imgData.data[i]   = tint < 0.5 ? v : v * 0.3;
+    imgData.data[i+1] = tint < 0.5 ? v * 0.3 : v;
+    imgData.data[i+2] = v * 0.5;
+    imgData.data[i+3] = Math.random() < 0.4 ? 0 : 170;
+  }
+  staticSmallCtx.putImageData(imgData, 0, 0);
+  staticCanvas.width = window.innerWidth;
+  staticCanvas.height = window.innerHeight;
+  staticCtx.imageSmoothingEnabled = false;
+  staticCtx.clearRect(0, 0, staticCanvas.width, staticCanvas.height);
+  staticCtx.drawImage(staticSmall, 0, 0, staticCanvas.width, staticCanvas.height);
+  staticCanvas.classList.add('active');
+  setTimeout(function() { staticCanvas.classList.remove('active'); }, 90 + Math.random() * 90);
+}
+
+function spawnGlitchBars(count) {
+  for (let i = 0; i < count; i++) {
+    const bar = document.createElement('div');
+    const h = 2 + Math.random() * 16;
+    const y = Math.random() * window.innerHeight;
+    const roll = Math.random();
+    const color = roll < 0.45 ? 'rgba(255,42,60,0.55)' : (roll < 0.8 ? 'rgba(138,43,226,0.5)' : 'rgba(0,255,136,0.4)');
+    bar.style.cssText = 'position:fixed;left:0;right:0;top:' + y + 'px;height:' + h + 'px;' +
+      'background:' + color + ';z-index:57;pointer-events:none;mix-blend-mode:screen;' +
+      'transform:translateX(' + ((Math.random() - 0.5) * 70) + 'px);';
+    document.body.appendChild(bar);
+    setTimeout(function() { bar.remove(); }, 80 + Math.random() * 150);
+  }
+}
+
+function triggerGlitch() {
+  const sel = glitchTargets[Math.floor(Math.random() * glitchTargets.length)];
+  const el = document.querySelector(sel);
+  if (el) {
+    el.classList.add('glitch-burst');
+    setTimeout(function() { el.classList.remove('glitch-burst'); }, 400);
+  }
+  if (Math.random() < 0.7) spawnGlitchBars(2 + Math.floor(Math.random() * 4));
+  if (Math.random() < 0.6) burstStatic();
+  if (Math.random() < 0.6) {
+    const flash = document.getElementById('corruptFlash');
+    flash.classList.add('active');
+    setTimeout(function() { flash.classList.remove('active'); }, 320);
+  }
+}
+setInterval(triggerGlitch, 1800 + Math.random() * 2200);
+
+// --- CH2: Anomaly scan flicker ---
+const anomalyEl = document.getElementById('anomalyStatus');
+function flickerAnomaly() {
+  if (!anomalyEl) return;
+  anomalyEl.textContent = 'UNKNOWN SIGNATURE — CARRION';
+  anomalyEl.className = 'sys-row-val infect blink';
+  setTimeout(function() {
+    anomalyEl.textContent = 'CLEAR';
+    anomalyEl.className = 'sys-row-val ok';
+  }, 900 + Math.random() * 600);
+}
+setTimeout(function() {
+  setInterval(flickerAnomaly, 6000 + Math.random() * 6000);
+}, 4000);
+
+// --- CH2: Glitch text scramble ---
+const GLITCH_CHARS = '#$%&010110¥∆ƒ¶§※';
+function scrambleText(el, original, cycles) {
+  let n = 0;
+  const iv = setInterval(function() {
+    let out = '';
+    for (let i = 0; i < original.length; i++) {
+      out += Math.random() < 0.35 ? GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)] : original[i];
+    }
+    el.textContent = out;
+    el.classList.add('scrambling');
+    n++;
+    if (n >= cycles) {
+      clearInterval(iv);
+      el.textContent = original;
+      el.classList.remove('scrambling');
+    }
+  }, 70);
+}
+document.querySelectorAll('.glitch-text').forEach(function(el) {
+  const original = el.textContent;
+  setInterval(function() {
+    scrambleText(el, original, 4 + Math.floor(Math.random() * 3));
+  }, 5000 + Math.random() * 6000);
+});
 
 // --- START ---
 buildPlaylist();
