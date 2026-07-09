@@ -595,6 +595,44 @@
     text-shadow: 0 0 6px var(--infect-glow);
     font-style: italic;
   }
+
+  .scar-text { color: var(--infect); text-shadow: 0 0 4px var(--infect-glow); }
+
+  #blackoutOverlay {
+    position: fixed; inset: 0;
+    z-index: 70;
+    pointer-events: none;
+    background: #000;
+    opacity: 0;
+  }
+  #blackoutOverlay.active { animation: blackoutPulse 0.6s ease-in-out; }
+  @keyframes blackoutPulse {
+    0%   { opacity: 0; }
+    15%  { opacity: 1; }
+    55%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  #blackoutGlow {
+    position: fixed; inset: 0;
+    z-index: 71;
+    pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+  }
+  #blackoutGlow.active { animation: blackoutGlowPulse 0.6s ease-in-out; }
+  @keyframes blackoutGlowPulse {
+    0%   { opacity: 0; }
+    30%  { opacity: 0; }
+    45%  { opacity: 1; }
+    62%  { opacity: 0.4; }
+    100% { opacity: 0; }
+  }
+  #blackoutGlow span {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--infect);
+    box-shadow: 0 0 40px 20px rgba(255,42,60,0.8);
+  }
 </style>
 </head>
 <body>
@@ -609,7 +647,7 @@
     <div class="header-status">
       <div><span class="status-dot"></span>SYSTEM ONLINE</div>
       <div class="time-display" id="clockDisplay">00:00:00</div>
-      <div>NODE: <span style="color:var(--green)">ALTARE-1</span></div>
+      <div>NODE: <span style="color:var(--green)" id="nodeLabel">ALTARE-1</span></div>
     </div>
   </div>
 
@@ -714,7 +752,7 @@
   <div id="footer">
     <div class="footer-left">
       <span>TERMINAL v2.4.1</span>
-      <span>ENCRYPTION: AES-256</span>
+      <span id="footerEncryption">ENCRYPTION: AES-256</span>
       <span id="footerStatus">STANDBY</span>
     </div>
     <div class="footer-right">BROTHERHOOD OF STEEL // PROJECT ALTARE</div>
@@ -756,6 +794,8 @@
 <div id="corruptFlash"></div>
 <div id="infectionVignette"></div>
 <canvas id="staticNoise"></canvas>
+<div id="blackoutOverlay"></div>
+<div id="blackoutGlow"><span></span></div>
 
 <script>
 // ============================================================
@@ -773,6 +813,7 @@ const audio = document.getElementById('audioPlayer');
 let currentTrack = 0;
 let isPlaying    = false;
 let loadStart    = Date.now();
+let corruptionAudioVisual = false;
 
 // --- Clock ---
 function updateClock() {
@@ -810,6 +851,7 @@ function animateSubs() {
 // --- Main bar ---
 function animateMain() {
   const iv = setInterval(() => {
+    if (hasRealProgress) { clearInterval(iv); return; }
     const pct = Math.min((Date.now()-loadStart)/CONFIG.loadDuration*100, 99);
     document.getElementById('mainBar').style.width = pct+'%';
     document.getElementById('mainPct').textContent = Math.floor(pct)+'%';
@@ -869,18 +911,23 @@ for (let i=0; i<18; i++) {
 function animateVU() {
   const bands = getFreqBands(18);
   vuEls.forEach((el,i) => {
+    let h, bg;
     if (isPlaying && analyser) {
-      const h = Math.max(2, Math.min(28, bands[i]*28));
-      el.style.height = h+'px';
-      el.style.background = h > 20 ? '#ffaa00' : '#00cc66';
+      h = Math.max(2, Math.min(28, bands[i]*28));
+      bg = h > 20 ? '#ffaa00' : '#00cc66';
     } else if (isPlaying) {
-      const h = Math.max(2, Math.min(28, 4+Math.sin(Date.now()/200+i*0.7)*6+Math.random()*10));
-      el.style.height = h+'px';
-      el.style.background = '#00cc66';
+      h = Math.max(2, Math.min(28, 4+Math.sin(Date.now()/200+i*0.7)*6+Math.random()*10));
+      bg = '#00cc66';
     } else {
-      el.style.height = '2px';
-      el.style.background = 'var(--green-dark)';
+      h = 2;
+      bg = 'var(--green-dark)';
     }
+    if (corruptionAudioVisual) {
+      h = Math.max(2, Math.min(28, h + Math.random()*18));
+      bg = (i % 2 === 0) ? '#ff2a3c' : '#8a2be2';
+    }
+    el.style.height = h+'px';
+    el.style.background = bg;
   });
   requestAnimationFrame(animateVU);
 }
@@ -905,7 +952,12 @@ function drawSpectrum() {
     } else {
       bh = 2; alpha = 0.12;
     }
-    specCtx.fillStyle = `rgba(0,204,102,${alpha})`;
+    if (corruptionAudioVisual) {
+      if (Math.random() < 0.35) bh = Math.min(h, bh + Math.random()*h*0.6);
+      specCtx.fillStyle = `rgba(255,42,60,${alpha})`;
+    } else {
+      specCtx.fillStyle = `rgba(0,204,102,${alpha})`;
+    }
     specCtx.fillRect(i*(bw+1), h-bh, bw, bh);
   }
   requestAnimationFrame(drawSpectrum);
@@ -1079,7 +1131,7 @@ const LOG_MESSAGES = [
   ['SYS',   'Secure channel established. Welcome, <span class="patriot-word glitch-text" id="patriotWord">Patriot</span>.', 'ok'],
   ['NET',   'Syncing player data from persistence layer...',                  'ok'],
   ['PLUG',  'Loading plugin: bos_ui (Codex) — OK',                           'ok'],
-  ['SYS',   'All systems nominal. Awaiting world transfer...',                'ok'],
+  ['SYS',   'All systems <span class="scar-text">n0m¡nal</span>. Awaiting world transfer...',   'ok'],
 ];
 let logIndex = 0;
 const logContainer = document.getElementById('logLines');
@@ -1094,13 +1146,43 @@ function addLog(src, msg, type) {
   while (logContainer.children.length > 6) logContainer.removeChild(logContainer.firstChild);
 }
 
-function runLogSequence() {
-  if (logIndex >= LOG_MESSAGES.length) return;
-  const [src,msg,type] = LOG_MESSAGES[logIndex++];
-  addLog(src,msg,type);
-  if (msg.indexOf('patriotWord') !== -1) setTimeout(triggerPatriotReveal, 120);
-  setTimeout(runLogSequence, 400+Math.random()*600);
+// --- CH2: Progress-driven event scheduler ---
+// Fixed wall-clock delays meant fast-loading players never reached later
+// events (mega-corruption, whispers, the Patriot reveal). Everything below
+// now fires off real load-progress fractions instead, so a 5-second load
+// and a 45-second load both play through the full sequence proportionally.
+const scheduledEvents = [];
+function scheduleAt(frac, fn) {
+  scheduledEvents.push({ frac: Math.max(0, Math.min(0.995, frac)), fn: fn, fired: false });
 }
+let lastSchedulerFire = 0;
+function tickScheduler() {
+  const f = loadFraction();
+  const now = Date.now();
+  if (now - lastSchedulerFire < 140) return;
+  for (let i = 0; i < scheduledEvents.length; i++) {
+    const ev = scheduledEvents[i];
+    if (!ev.fired && f >= ev.frac) {
+      ev.fired = true;
+      lastSchedulerFire = now;
+      ev.fn();
+      return;
+    }
+  }
+}
+
+function fireLogMessage(entry) {
+  const [src, msg, type] = entry;
+  logIndex++;
+  addLog(src, msg, type);
+  if (msg.indexOf('patriotWord') !== -1) setTimeout(triggerPatriotReveal, 120);
+}
+
+LOG_MESSAGES.forEach(function(entry, i) {
+  const span = LOG_MESSAGES.length - 1 || 1;
+  const base = 0.03 + i * (0.94 / span);
+  scheduleAt(base + (Math.random() - 0.5) * 0.015, function() { fireLogMessage(entry); });
+});
 
 // --- GMod API ---
 function GameDetails(servName,serverURL,mapName) {
@@ -1108,7 +1190,11 @@ function GameDetails(servName,serverURL,mapName) {
 }
 function SetStatusChanged(status) { addLog('GMOD',status,'ok'); }
 function DownloadingFile(fileName) { addLog('DL',fileName,''); }
+let actualProgress = 0;
+let hasRealProgress = false;
 function LoadingProgress(progress) {
+  actualProgress = progress;
+  hasRealProgress = true;
   const pct = Math.floor(progress*100);
   document.getElementById('mainBar').style.width = pct+'%';
   document.getElementById('mainPct').textContent = pct+'%';
@@ -1252,6 +1338,7 @@ function spawnGlitchBars(count) {
 }
 
 function loadFraction() {
+  if (hasRealProgress) return Math.min(Math.max(actualProgress, 0), 1);
   return Math.min((Date.now() - loadStart) / CONFIG.loadDuration, 1);
 }
 
@@ -1270,6 +1357,9 @@ function triggerGlitch() {
     setTimeout(function() { flash.classList.remove('active'); }, 340);
   }
   if (Math.random() < 0.3) corruptSysRow();
+  if (Math.random() < 0.25) flickerFooterEncryption();
+  if (Math.random() < 0.2) glitchClock();
+  if (Math.random() < 0.2) duplicateNode();
 }
 
 function scheduleGlitch() {
@@ -1310,6 +1400,59 @@ function glitchSeal() {
   setTimeout(function() { ghost.classList.remove('active'); }, 270);
 }
 
+function flickerFooterEncryption() {
+  const el = document.getElementById('footerEncryption');
+  if (!el) return;
+  const original = el.textContent;
+  el.textContent = Math.random() < 0.5 ? 'ENCRYPTION: ??????' : 'ENCRYPTION: COMPROMISED';
+  el.style.color = 'var(--infect)';
+  setTimeout(function() {
+    el.textContent = original;
+    el.style.color = '';
+  }, 400 + Math.random() * 400);
+}
+
+function glitchClock() {
+  const el = document.getElementById('clockDisplay');
+  if (!el) return;
+  const original = el.textContent;
+  let out = '';
+  for (let i = 0; i < original.length; i++) {
+    out += (/[0-9]/.test(original[i]) && Math.random() < 0.6)
+      ? GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)]
+      : original[i];
+  }
+  el.textContent = out;
+  el.style.color = 'var(--infect)';
+  // updateClock() ticks every second and will overwrite with the real time
+  // on its own, so we only need to clear the color, not restore the text.
+  setTimeout(function() { el.style.color = ''; }, 220 + Math.random() * 180);
+}
+
+function duplicateNode() {
+  const el = document.getElementById('nodeLabel');
+  if (!el) return;
+  const original = el.textContent;
+  el.textContent = original + '.' + (1 + Math.floor(Math.random() * 9));
+  el.style.color = 'var(--infect)';
+  setTimeout(function() {
+    el.textContent = original;
+    el.style.color = '';
+  }, 500 + Math.random() * 400);
+}
+
+function blackoutBeat() {
+  const bo = document.getElementById('blackoutOverlay');
+  const bg = document.getElementById('blackoutGlow');
+  if (!bo || !bg) return;
+  bo.classList.add('active');
+  bg.classList.add('active');
+  setTimeout(function() {
+    bo.classList.remove('active');
+    bg.classList.remove('active');
+  }, 650);
+}
+
 let containmentDip = 0;
 function megaCorruptionEvent() {
   const root = document.getElementById('root');
@@ -1325,6 +1468,9 @@ function megaCorruptionEvent() {
   setTimeout(corruptSysRow, 400);
   glitchSeal();
   containmentDip += 14 + Math.random() * 10;
+  corruptionAudioVisual = true;
+  setTimeout(function() { corruptionAudioVisual = false; }, 700 + Math.random() * 300);
+  if (Math.random() < 0.22) blackoutBeat();
 }
 setInterval(megaCorruptionEvent, 13000 + Math.random() * 7000);
 
@@ -1341,6 +1487,7 @@ function updateInfectionIntensity() {
     containmentEl.textContent = pct + '%';
     containmentEl.className = 'sys-row-val ' + (pct > 65 ? 'ok' : pct > 35 ? 'warn' : 'infect blink');
   }
+  tickScheduler();
   requestAnimationFrame(updateInfectionIntensity);
 }
 updateInfectionIntensity();
@@ -1352,8 +1499,8 @@ function creepBarInfection(id, holdMs) {
   el.style.width = '55%';
   setTimeout(function() { el.style.width = '0%'; }, holdMs);
 }
-setTimeout(function() { creepBarInfection('creep3', 900 + Math.random() * 400); }, 4200 + Math.random() * 1500);
-setTimeout(function() { creepBarInfection('creep4', 700 + Math.random() * 400); }, 7500 + Math.random() * 1500);
+scheduleAt(0.28 + Math.random() * 0.07, function() { creepBarInfection('creep3', 900 + Math.random() * 400); });
+scheduleAt(0.56 + Math.random() * 0.07, function() { creepBarInfection('creep4', 700 + Math.random() * 400); });
 
 // --- CH2: Corrupted whisper log lines ---
 const WHISPER_MESSAGES = [
@@ -1374,8 +1521,26 @@ function injectWhisper() {
   const msgEl = el.querySelector('.whisper-msg');
   if (msgEl) scrambleText(msgEl, msg[1], 4);
 }
-setTimeout(injectWhisper, 3200 + Math.random() * 5500);
-if (Math.random() < 0.4) setTimeout(injectWhisper, 9500 + Math.random() * 3000);
+scheduleAt(0.18 + Math.random() * 0.08, injectWhisper);
+if (Math.random() < 0.4) scheduleAt(0.66 + Math.random() * 0.1, injectWhisper);
+
+// --- CH2: Session key easter egg ---
+function sessionKeyEasterEgg() {
+  const el = document.getElementById('sessKey');
+  if (!el) return;
+  const original = el.textContent;
+  const originalClass = el.className;
+  el.textContent = 'CARRION-AWAKENS';
+  el.className = originalClass + ' infect';
+  setTimeout(function() {
+    el.textContent = original;
+    el.className = originalClass;
+  }, 700 + Math.random() * 300);
+}
+scheduleAt(0.80 + Math.random() * 0.06, sessionKeyEasterEgg);
+
+// --- CH2: Guaranteed early mega-corruption so fast loaders still see one ---
+scheduleAt(0.42 + Math.random() * 0.08, megaCorruptionEvent);
 
 
 // --- CH2: Anomaly scan flicker ---
@@ -1438,7 +1603,6 @@ setTimeout(() => {
 }, 1500);
 animateMain();
 animateSubs();
-setTimeout(runLogSequence, 300);
 </script>
 </body>
 </html>
