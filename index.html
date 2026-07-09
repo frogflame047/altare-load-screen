@@ -680,6 +680,38 @@
     text-shadow: 0 0 8px var(--infect-glow);
     animation: blink 0.9s step-end infinite;
   }
+
+  /* === FABLE PASS 2 === */
+  .core-label .l3 {
+    color: var(--amber);
+    margin-top: 0.2em;
+    font-size: 0.8em;
+    letter-spacing: 0.15em;
+  }
+  .core-label .l3.hot { color: var(--infect); text-shadow: 0 0 6px var(--infect-glow); }
+
+  .eye-pupil-group.tracking { animation: none; }
+
+  .corruption-sweep {
+    position: fixed;
+    top: 0; bottom: 0;
+    left: -90px;
+    width: 80px;
+    z-index: 58;
+    pointer-events: none;
+    background: linear-gradient(90deg,
+      transparent,
+      rgba(255,42,60,0.22) 30%,
+      rgba(255,42,60,0.65) 50%,
+      rgba(138,43,226,0.28) 70%,
+      transparent);
+    mix-blend-mode: screen;
+    animation: sweepAcross 1.4s linear forwards;
+  }
+  @keyframes sweepAcross {
+    from { transform: translateX(0); }
+    to   { transform: translateX(calc(100vw + 180px)); }
+  }
 </style>
 </head>
 <body>
@@ -848,6 +880,7 @@
   <div class="core-label">
     <div class="l1 glitch-text" id="coreLabel1">CARRION.SYS</div>
     <div class="l2" id="coreLabel2">UNAUTHORIZED PROCESS — ACTIVE</div>
+    <div class="l3" id="coreLabel3">ASSIMILATION 0%</div>
   </div>
 </div>
 <div id="corruptFlash"></div>
@@ -1284,6 +1317,7 @@ const infCtx = infCanvas.getContext('2d');
 let infSegments = [];
 let infPustules = [];
 let infFlows = [];
+let infSpores = [];
 let infW = 0, infH = 0;
 
 function growVein(x, y, tx, ty, depth, maxDepth, segs) {
@@ -1329,6 +1363,16 @@ function buildTendrils() {
   infSegments = segs;
   infFlows = Array.from({length: 26}, function() {
     return { seg: Math.floor(Math.random() * segs.length), t: Math.random(), speed: 0.004 + Math.random() * 0.008 };
+  });
+  infSpores = Array.from({length: 48}, function() {
+    return {
+      x: Math.random() * infW,
+      y: infH * (0.4 + Math.random() * 0.6),
+      vy: -(0.12 + Math.random() * 0.3),
+      phase: Math.random() * Math.PI * 2,
+      size: 0.8 + Math.random() * 1.6,
+      purple: Math.random() < 0.3
+    };
   });
 }
 
@@ -1395,6 +1439,21 @@ function drawTendrils() {
     infCtx.beginPath(); infCtx.arc(pt.x, pt.y, 1.4, 0, Math.PI * 2); infCtx.fill();
   }
   infCtx.shadowBlur = 0;
+  // spores: ambient motes drifting up off the infection, denser as it spreads
+  const sporeCount = Math.min(infSpores.length, Math.floor(10 + frac * 38));
+  for (let i = 0; i < sporeCount; i++) {
+    const sp = infSpores[i];
+    sp.y += sp.vy;
+    sp.x += Math.sin(now / 1300 + sp.phase) * 0.25;
+    if (sp.y < -8) {
+      sp.y = infH + 8;
+      sp.x = Math.random() * infW;
+    }
+    const twinkle = 0.5 + Math.sin(now / 500 + sp.phase) * 0.5;
+    const rgb = sp.purple ? '138,43,226' : '255,42,60';
+    infCtx.fillStyle = 'rgba(' + rgb + ',' + (0.12 + twinkle * 0.22) + ')';
+    infCtx.beginPath(); infCtx.arc(sp.x, sp.y, sp.size, 0, Math.PI * 2); infCtx.fill();
+  }
   infProgress += 0.00021;
   if (infProgress > 1.3) {
     infProgress = 0;
@@ -1585,6 +1644,7 @@ function megaCorruptionEvent() {
   corruptionAudioVisual = true;
   setTimeout(function() { corruptionAudioVisual = false; }, 700 + Math.random() * 300);
   if (Math.random() < 0.22) blackoutBeat();
+  if (Math.random() < 0.6) corruptionSweep();
 }
 setInterval(megaCorruptionEvent, 13000 + Math.random() * 7000);
 
@@ -1635,6 +1695,11 @@ function updatePalette(frac, now) {
     const seal = document.querySelector('.bos-seal');
     if (seal) seal.classList.add('sickened');
   }
+  const assim = document.getElementById('coreLabel3');
+  if (assim) {
+    assim.textContent = 'ASSIMILATION ' + Math.floor(frac * 100) + '%';
+    if (frac > 0.6 && assim.className.indexOf('hot') === -1) assim.className = 'l3 hot';
+  }
 }
 
 function updateInfectionIntensity() {
@@ -1643,6 +1708,7 @@ function updateInfectionIntensity() {
   const intensity = 0.12 + frac * 0.5;
   document.documentElement.style.setProperty('--infection-intensity', intensity.toFixed(2));
   updatePalette(frac, now);
+  updateEyeTracking(now);
   containmentDip *= 0.94;
   if (containmentEl) {
     const base = 98 - frac * 70 - Math.sin(frac * 14) * 3;
@@ -1653,7 +1719,7 @@ function updateInfectionIntensity() {
   tickScheduler();
   requestAnimationFrame(updateInfectionIntensity);
 }
-updateInfectionIntensity();
+requestAnimationFrame(updateInfectionIntensity);
 
 // --- CH2: Sub-bar infection creep ---
 function creepBarInfection(id, holdMs) {
@@ -1780,6 +1846,93 @@ scheduleAt(0.35, permanentDecay);
 scheduleAt(0.55 + Math.random() * 0.05, permanentDecay);
 scheduleAt(0.75 + Math.random() * 0.05, permanentDecay);
 scheduleAt(0.90, permanentDecay);
+
+// === FABLE PASS 2 ===
+
+// --- The eye watches your cursor ---
+// (In-game GMod loading screens may not deliver mouse events; if so the eye
+// just keeps its ambient darting animation — graceful fallback either way.)
+let eyeMouseX = null, eyeMouseY = null, lastEyeMouseMove = 0, lastEyeUpdate = 0;
+document.addEventListener('mousemove', function(e) {
+  eyeMouseX = e.clientX; eyeMouseY = e.clientY; lastEyeMouseMove = Date.now();
+});
+function updateEyeTracking(now) {
+  if (now - lastEyeUpdate < 70) return;
+  lastEyeUpdate = now;
+  const pg = document.querySelector('.eye-pupil-group');
+  const core = document.getElementById('infectionCore');
+  if (!pg || !core) return;
+  if (eyeMouseX !== null && now - lastEyeMouseMove < 3000) {
+    const r = core.getBoundingClientRect();
+    const cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2;
+    const dx = eyeMouseX - cx, dy = eyeMouseY - cy;
+    const len = Math.hypot(dx, dy) || 1;
+    const reach = Math.min(5, len * 0.03);
+    pg.classList.add('tracking');
+    pg.style.transform = 'translate(' + (dx / len * reach).toFixed(1) + 'px,' + (dy / len * reach).toFixed(1) + 'px)';
+  } else if (pg.classList.contains('tracking')) {
+    pg.classList.remove('tracking');
+    pg.style.transform = '';
+  }
+}
+
+// --- Corruption sweep: a wave that glitches everything it passes over ---
+function corruptionSweep() {
+  const bar = document.createElement('div');
+  bar.className = 'corruption-sweep';
+  document.body.appendChild(bar);
+  const dur = 1400;
+  ['#header', '.bos-seal-container', '.sys-table', '#sidebar', '#logbar', '#footer'].forEach(function(sel) {
+    const el = document.querySelector(sel);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const t = Math.max(0, Math.min(1, ((r.left + r.right) / 2) / window.innerWidth)) * dur;
+    setTimeout(function() {
+      el.classList.add('glitch-burst');
+      setTimeout(function() { el.classList.remove('glitch-burst'); }, 400);
+    }, t);
+  });
+  setTimeout(function() { bar.remove(); }, dur + 120);
+}
+scheduleAt(0.62 + Math.random() * 0.05, corruptionSweep);
+
+// --- History rewrite: already-printed log lines get retroactively corrupted ---
+function rewriteHistory() {
+  const msgs = Array.prototype.slice.call(logContainer.querySelectorAll('.log-msg'))
+    .filter(function(el) { return el.children.length === 0 && el.textContent.length > 4; });
+  if (!msgs.length) return;
+  const el = msgs[Math.floor(Math.random() * msgs.length)];
+  const original = el.textContent;
+  scrambleText(el, original, 3);
+  setTimeout(function() {
+    const txt = el.textContent;
+    const idxs = [];
+    for (let i = 0; i < txt.length; i++) if (/[A-Za-z0-9]/.test(txt[i])) idxs.push(i);
+    if (!idxs.length) return;
+    const i = idxs[Math.floor(Math.random() * idxs.length)];
+    el.innerHTML = txt.slice(0, i).replace(/</g, '&lt;') +
+      '<span class="scar-text">' + GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)] + '</span>' +
+      txt.slice(i + 1).replace(/</g, '&lt;');
+  }, 3 * 70 + 90);
+}
+setInterval(rewriteHistory, 9000 + Math.random() * 6000);
+
+// --- The logo takeover: PROJECT ALTARE flickers to PROJECT CARRION ---
+function logoTakeover() {
+  const el = document.querySelector('.logo-title');
+  if (!el) return;
+  morphText(el, 'PROJECT ALTARE', 'PROJECT CARRION', 7);
+  setTimeout(function() { morphText(el, 'PROJECT CARRION', 'PROJECT ALTARE', 7); }, 1700);
+  setTimeout(function() {
+    // one letter never heals
+    const txt = 'PROJECT ALTARE';
+    const i = 8 + Math.floor(Math.random() * 6); // scar within "ALTARE"
+    el.innerHTML = txt.slice(0, i) +
+      '<span class="scar-text">' + GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)] + '</span>' +
+      txt.slice(i + 1);
+  }, 3600);
+}
+scheduleAt(0.95, logoTakeover);
 
 
 // --- CH2: Anomaly scan flicker ---
