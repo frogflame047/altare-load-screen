@@ -245,6 +245,7 @@
     background: rgba(0,255,136,0.06);
     border: 1px solid rgba(0,255,136,0.12);
     overflow: hidden;
+    position: relative;
   }
   .sub-bar-fill {
     height: 100%;
@@ -528,9 +529,72 @@
     mix-blend-mode: overlay;
     image-rendering: pixelated;
   }
-  #staticNoise.active { opacity: 0.85; }
+  #staticNoise.active { opacity: var(--static-intensity, 0.85); }
 
   .sys-row-val.infect { color: var(--infect); text-shadow: 0 0 6px var(--infect-glow); }
+
+  /* === CHAPTER TWO: DEEPER CORRUPTION === */
+  #infectionVignette {
+    position: fixed; inset: 0;
+    z-index: 39;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 38%, rgba(255,42,60,0.5) 100%);
+    animation: heartbeatVignette 2.4s ease-in-out infinite;
+  }
+  @keyframes heartbeatVignette {
+    0%   { opacity: calc(var(--infection-intensity, 0.12) * 0.55); }
+    7%   { opacity: calc(var(--infection-intensity, 0.12) * 1.35); }
+    14%  { opacity: calc(var(--infection-intensity, 0.12) * 0.6); }
+    22%  { opacity: calc(var(--infection-intensity, 0.12) * 1.15); }
+    32%  { opacity: calc(var(--infection-intensity, 0.12) * 0.55); }
+    100% { opacity: calc(var(--infection-intensity, 0.12) * 0.55); }
+  }
+
+  @keyframes megaCorrupt {
+    0%   { filter: none; transform: skewX(0deg) translate(0,0); }
+    8%   { filter: hue-rotate(25deg) saturate(1.7) contrast(1.5); transform: skewX(-1.4deg) translate(-5px,1px); }
+    20%  { filter: hue-rotate(-20deg) saturate(1.9) contrast(1.6); transform: skewX(2deg) translate(6px,-1px); }
+    32%  { filter: invert(0.07) hue-rotate(10deg); transform: skewX(-0.8deg) translate(-4px,0); }
+    46%  { filter: saturate(2.1) contrast(1.7); transform: translate(5px,1px); }
+    58%  { filter: none; transform: translate(0,0); }
+    64%  { filter: hue-rotate(15deg) contrast(1.4); transform: skewX(1.2deg) translate(-3px,0); }
+    76%  { filter: saturate(1.8); transform: translate(3px,-1px); }
+    88%  { filter: none; transform: translate(-1px,0); }
+    100% { filter: none; transform: none; }
+  }
+  #root.mega-corrupt { animation: megaCorrupt 0.85s steps(4,end); }
+
+  .patriot-word { color: var(--green); }
+  .patriot-word.scrambling { color: var(--infect); text-shadow: 0 0 10px var(--infect-glow), 0 0 20px var(--infect-purple); font-weight: 700; }
+  .bos-seal-wrap { position: relative; flex-shrink: 0; }
+  .bos-seal-ghost {
+    position: absolute; top: 0; left: 0;
+    width: clamp(56px, 5.5vw, 88px);
+    height: clamp(56px, 5.5vw, 88px);
+    object-fit: contain;
+    opacity: 0;
+    filter: sepia(1) saturate(7) hue-rotate(-42deg) brightness(1.35);
+    mix-blend-mode: screen;
+    pointer-events: none;
+    transition: opacity 0.1s linear, transform 0.1s linear;
+  }
+  .bos-seal-ghost.active { opacity: 0.8; transform: translate(4px,-2px); }
+
+  .infection-creep {
+    position: absolute; top: 0; bottom: 0; right: 0;
+    width: 0%;
+    background: linear-gradient(90deg, transparent, rgba(255,42,60,0.85));
+    box-shadow: 0 0 6px rgba(255,42,60,0.7);
+    pointer-events: none;
+    transition: width 0.45s ease;
+  }
+
+  .whisper-src { color: var(--infect); }
+  .log-msg.whisper-msg {
+    color: var(--infect);
+    text-shadow: 0 0 6px var(--infect-glow);
+    font-style: italic;
+  }
 </style>
 </head>
 <body>
@@ -554,7 +618,10 @@
 
     <!-- BOS SEAL + IDENT -->
     <div class="bos-seal-container">
-      <img class="bos-seal" src="./bos_logo.png" alt="Brotherhood of Steel">
+      <div class="bos-seal-wrap">
+        <img class="bos-seal" src="./bos_logo.png" alt="Brotherhood of Steel">
+        <img class="bos-seal-ghost" id="sealGhost" src="./bos_logo.png" alt="" aria-hidden="true">
+      </div>
       <div class="seal-text">
         <div class="seal-title">Chapter - Two</div>
         <div class="seal-motto">"Ad Victoriam" — Through Victory, We Endure</div>
@@ -578,8 +645,8 @@
       <div class="sub-bar-row"><span class="sub-bar-label">HELIX FRAMEWORK</span><div class="sub-bar-track"><div class="sub-bar-fill" id="sb0" style="width:0%"></div></div><span class="sub-bar-pct" id="sp0">0%</span></div>
       <div class="sub-bar-row"><span class="sub-bar-label">SCHEMA REGISTRY</span><div class="sub-bar-track"><div class="sub-bar-fill" id="sb1" style="width:0%"></div></div><span class="sub-bar-pct" id="sp1">0%</span></div>
       <div class="sub-bar-row"><span class="sub-bar-label">PLUGIN MODULES</span><div class="sub-bar-track"><div class="sub-bar-fill" id="sb2" style="width:0%"></div></div><span class="sub-bar-pct" id="sp2">0%</span></div>
-      <div class="sub-bar-row"><span class="sub-bar-label">RESOURCE CACHE</span><div class="sub-bar-track"><div class="sub-bar-fill" id="sb3" style="width:0%"></div></div><span class="sub-bar-pct" id="sp3">0%</span></div>
-      <div class="sub-bar-row"><span class="sub-bar-label">ENTITY MANIFEST</span><div class="sub-bar-track"><div class="sub-bar-fill" id="sb4" style="width:0%"></div></div><span class="sub-bar-pct" id="sp4">0%</span></div>
+      <div class="sub-bar-row"><span class="sub-bar-label">RESOURCE CACHE</span><div class="sub-bar-track"><div class="sub-bar-fill" id="sb3" style="width:0%"></div><div class="infection-creep" id="creep3"></div></div><span class="sub-bar-pct" id="sp3">0%</span></div>
+      <div class="sub-bar-row"><span class="sub-bar-label">ENTITY MANIFEST</span><div class="sub-bar-track"><div class="sub-bar-fill" id="sb4" style="width:0%"></div><div class="infection-creep" id="creep4"></div></div><span class="sub-bar-pct" id="sp4">0%</span></div>
       <div class="sub-bar-row"><span class="sub-bar-label">MAP SECTORS</span><div class="sub-bar-track"><div class="sub-bar-fill" id="sb5" style="width:0%"></div></div><span class="sub-bar-pct" id="sp5">0%</span></div>
     </div>
 
@@ -592,6 +659,7 @@
       <div class="sys-row"><span class="sys-row-key">SECURE CHANNEL</span><span class="sys-row-val warn" id="chanStatus">ESTABLISHING</span></div>
       <div class="sys-row"><span class="sys-row-key">PLAYER SLOT</span><span class="sys-row-val ok">RESERVED</span></div>
       <div class="sys-row"><span class="sys-row-key">ANOMALY SCAN</span><span class="sys-row-val ok" id="anomalyStatus">CLEAR</span></div>
+      <div class="sys-row"><span class="sys-row-key">CONTAINMENT</span><span class="sys-row-val ok" id="containmentStatus">98%</span></div>
     </div>
 
   </div>
@@ -686,6 +754,7 @@
   </div>
 </div>
 <div id="corruptFlash"></div>
+<div id="infectionVignette"></div>
 <canvas id="staticNoise"></canvas>
 
 <script>
@@ -851,6 +920,26 @@ const radarBlips = Array.from({length:6},()=>({
   a: Math.random()*Math.PI*2, r: 0.2+Math.random()*0.7,
   age: 0, size: 1.5+Math.random()*2
 }));
+
+// --- CH2: Rogue contact — infected blip that ignores the sweep ---
+const rogueBlip = {
+  a: Math.random()*Math.PI*2, r: 0.3+Math.random()*0.5,
+  visible: true, size: 2.4, nextShiftAt: Date.now()+3500+Math.random()*4000
+};
+function updateRogueBlip() {
+  const now = Date.now();
+  if (now > rogueBlip.nextShiftAt) {
+    rogueBlip.visible = !rogueBlip.visible;
+    if (rogueBlip.visible) {
+      rogueBlip.a = Math.random()*Math.PI*2;
+      rogueBlip.r = 0.25+Math.random()*0.6;
+      rogueBlip.nextShiftAt = now + 3000+Math.random()*4500;
+    } else {
+      rogueBlip.nextShiftAt = now + 900+Math.random()*1400;
+    }
+  }
+}
+
 function drawRadar() {
   const w = radarCanvas.offsetWidth  || 200;
   const h = radarCanvas.offsetHeight || 160;
@@ -886,6 +975,21 @@ function drawRadar() {
       rctx.beginPath(); rctx.arc(bx,by,blip.size*blip.age+1,0,Math.PI*2); rctx.fill();
     }
   });
+  updateRogueBlip();
+  if (rogueBlip.visible) {
+    const rx = cx+Math.cos(rogueBlip.a)*rogueBlip.r*radius;
+    const ry = cy+Math.sin(rogueBlip.a)*rogueBlip.r*radius;
+    const pulse = 0.55 + Math.sin(Date.now()/240)*0.35;
+    rctx.save();
+    rctx.shadowColor = 'rgba(255,42,60,0.9)';
+    rctx.shadowBlur = 7;
+    rctx.fillStyle = `rgba(255,42,60,${Math.max(0.2,pulse)})`;
+    rctx.beginPath(); rctx.arc(rx,ry,rogueBlip.size,0,Math.PI*2); rctx.fill();
+    rctx.strokeStyle = `rgba(255,42,60,${Math.max(0.15,pulse*0.5)})`;
+    rctx.lineWidth = 1;
+    rctx.beginPath(); rctx.arc(rx,ry,rogueBlip.size+3,0,Math.PI*2); rctx.stroke();
+    rctx.restore();
+  }
   rctx.strokeStyle='rgba(0,119,68,0.6)'; rctx.lineWidth=1;
   rctx.beginPath(); rctx.arc(cx,cy,radius,0,Math.PI*2); rctx.stroke();
   radarAngle += 0.025;
@@ -972,7 +1076,7 @@ const LOG_MESSAGES = [
   ['SYS',   'Data integrity check... 2 sectors corrupted',                   'err'],
   ['AUTH',  'Session key validated — ACCESS GRANTED',                         'ok'],
   ['NET',   'Unidentified packet signature intercepted — logging',          'warn'],
-  ['SYS',   'Secure channel established. Welcome, Initiate.',                 'ok'],
+  ['SYS',   'Secure channel established. Welcome, <span class="patriot-word glitch-text" id="patriotWord">Patriot</span>.', 'ok'],
   ['NET',   'Syncing player data from persistence layer...',                  'ok'],
   ['PLUG',  'Loading plugin: bos_ui (Codex) — OK',                           'ok'],
   ['SYS',   'All systems nominal. Awaiting world transfer...',                'ok'],
@@ -994,6 +1098,7 @@ function runLogSequence() {
   if (logIndex >= LOG_MESSAGES.length) return;
   const [src,msg,type] = LOG_MESSAGES[logIndex++];
   addLog(src,msg,type);
+  if (msg.indexOf('patriotWord') !== -1) setTimeout(triggerPatriotReveal, 120);
   setTimeout(runLogSequence, 400+Math.random()*600);
 }
 
@@ -1102,14 +1207,14 @@ drawTendrils();
 window.addEventListener('resize', buildTendrils);
 
 // --- CH2: Glitch / corruption bursts ---
-const glitchTargets = ['.logo-title', '.sys-table', '#logbar', '.seal-text'];
+const glitchTargets = ['.logo-title', '.sys-table', '#logbar', '.seal-text', '#header', '#sidebar'];
 const staticCanvas = document.getElementById('staticNoise');
 const staticCtx = staticCanvas.getContext('2d');
 const staticSmall = document.createElement('canvas');
 staticSmall.width = 160; staticSmall.height = 90;
 const staticSmallCtx = staticSmall.getContext('2d');
 
-function burstStatic() {
+function burstStatic(intensity) {
   const w = 160, h = 90;
   const imgData = staticSmallCtx.createImageData(w, h);
   for (let i = 0; i < imgData.data.length; i += 4) {
@@ -1126,23 +1231,28 @@ function burstStatic() {
   staticCtx.imageSmoothingEnabled = false;
   staticCtx.clearRect(0, 0, staticCanvas.width, staticCanvas.height);
   staticCtx.drawImage(staticSmall, 0, 0, staticCanvas.width, staticCanvas.height);
+  staticCanvas.style.setProperty('--static-intensity', intensity || 0.85);
   staticCanvas.classList.add('active');
-  setTimeout(function() { staticCanvas.classList.remove('active'); }, 90 + Math.random() * 90);
+  setTimeout(function() { staticCanvas.classList.remove('active'); }, 90 + Math.random() * 120);
 }
 
 function spawnGlitchBars(count) {
   for (let i = 0; i < count; i++) {
     const bar = document.createElement('div');
-    const h = 2 + Math.random() * 16;
+    const h = 2 + Math.random() * 20;
     const y = Math.random() * window.innerHeight;
     const roll = Math.random();
-    const color = roll < 0.45 ? 'rgba(255,42,60,0.55)' : (roll < 0.8 ? 'rgba(138,43,226,0.5)' : 'rgba(0,255,136,0.4)');
+    const color = roll < 0.45 ? 'rgba(255,42,60,0.6)' : (roll < 0.8 ? 'rgba(138,43,226,0.55)' : 'rgba(0,255,136,0.45)');
     bar.style.cssText = 'position:fixed;left:0;right:0;top:' + y + 'px;height:' + h + 'px;' +
       'background:' + color + ';z-index:57;pointer-events:none;mix-blend-mode:screen;' +
-      'transform:translateX(' + ((Math.random() - 0.5) * 70) + 'px);';
+      'transform:translateX(' + ((Math.random() - 0.5) * 100) + 'px);';
     document.body.appendChild(bar);
     setTimeout(function() { bar.remove(); }, 80 + Math.random() * 150);
   }
+}
+
+function loadFraction() {
+  return Math.min((Date.now() - loadStart) / CONFIG.loadDuration, 1);
 }
 
 function triggerGlitch() {
@@ -1152,15 +1262,121 @@ function triggerGlitch() {
     el.classList.add('glitch-burst');
     setTimeout(function() { el.classList.remove('glitch-burst'); }, 400);
   }
-  if (Math.random() < 0.7) spawnGlitchBars(2 + Math.floor(Math.random() * 4));
-  if (Math.random() < 0.6) burstStatic();
-  if (Math.random() < 0.6) {
+  spawnGlitchBars(3 + Math.floor(Math.random() * 5));
+  if (Math.random() < 0.75) burstStatic(0.7 + Math.random() * 0.3);
+  if (Math.random() < 0.7) {
     const flash = document.getElementById('corruptFlash');
     flash.classList.add('active');
-    setTimeout(function() { flash.classList.remove('active'); }, 320);
+    setTimeout(function() { flash.classList.remove('active'); }, 340);
   }
+  if (Math.random() < 0.3) corruptSysRow();
 }
-setInterval(triggerGlitch, 1800 + Math.random() * 2200);
+
+function scheduleGlitch() {
+  triggerGlitch();
+  const frac = loadFraction();
+  const maxDelay = 3200, minDelay = 700;
+  const delay = maxDelay - frac * (maxDelay - minDelay) + Math.random() * 700;
+  setTimeout(scheduleGlitch, delay);
+}
+setTimeout(scheduleGlitch, 1400);
+
+// --- CH2: Full-system corruption events ---
+function corruptSysRow() {
+  const rows = Array.prototype.slice.call(document.querySelectorAll('.sys-row-val'))
+    .filter(function(el) { return el.id !== 'anomalyStatus' && el.id !== 'containmentStatus'; });
+  if (!rows.length) return;
+  const el = rows[Math.floor(Math.random() * rows.length)];
+  const original = el.textContent;
+  const originalClass = el.className;
+  let out = '';
+  for (let i = 0; i < original.length; i++) {
+    out += /\s/.test(original[i]) ? original[i] : GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)];
+  }
+  el.textContent = out;
+  el.className = originalClass + ' infect';
+  setTimeout(function() {
+    el.textContent = original;
+    el.className = originalClass;
+  }, 350 + Math.random() * 350);
+}
+
+function glitchSeal() {
+  const ghost = document.getElementById('sealGhost');
+  if (!ghost) return;
+  ghost.classList.add('active');
+  setTimeout(function() { ghost.classList.remove('active'); }, 90);
+  setTimeout(function() { ghost.classList.add('active'); }, 180);
+  setTimeout(function() { ghost.classList.remove('active'); }, 270);
+}
+
+let containmentDip = 0;
+function megaCorruptionEvent() {
+  const root = document.getElementById('root');
+  root.classList.add('mega-corrupt');
+  setTimeout(function() { root.classList.remove('mega-corrupt'); }, 850);
+  spawnGlitchBars(10 + Math.floor(Math.random() * 8));
+  burstStatic(1);
+  const flash = document.getElementById('corruptFlash');
+  flash.classList.add('active');
+  setTimeout(function() { flash.classList.remove('active'); }, 550);
+  corruptSysRow();
+  setTimeout(corruptSysRow, 180);
+  setTimeout(corruptSysRow, 400);
+  glitchSeal();
+  containmentDip += 14 + Math.random() * 10;
+}
+setInterval(megaCorruptionEvent, 13000 + Math.random() * 7000);
+
+// --- CH2: Infection intensity climbs as load progresses ---
+const containmentEl = document.getElementById('containmentStatus');
+function updateInfectionIntensity() {
+  const frac = loadFraction();
+  const intensity = 0.12 + frac * 0.5;
+  document.documentElement.style.setProperty('--infection-intensity', intensity.toFixed(2));
+  containmentDip *= 0.94;
+  if (containmentEl) {
+    const base = 98 - frac * 70 - Math.sin(frac * 14) * 3;
+    const pct = Math.max(3, Math.round(base - containmentDip));
+    containmentEl.textContent = pct + '%';
+    containmentEl.className = 'sys-row-val ' + (pct > 65 ? 'ok' : pct > 35 ? 'warn' : 'infect blink');
+  }
+  requestAnimationFrame(updateInfectionIntensity);
+}
+updateInfectionIntensity();
+
+// --- CH2: Sub-bar infection creep ---
+function creepBarInfection(id, holdMs) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.width = '55%';
+  setTimeout(function() { el.style.width = '0%'; }, holdMs);
+}
+setTimeout(function() { creepBarInfection('creep3', 900 + Math.random() * 400); }, 4200 + Math.random() * 1500);
+setTimeout(function() { creepBarInfection('creep4', 700 + Math.random() * 400); }, 7500 + Math.random() * 1500);
+
+// --- CH2: Corrupted whisper log lines ---
+const WHISPER_MESSAGES = [
+  ['????',    'i can see you through the wire'],
+  ['UNKNOWN', 'we were never quarantined'],
+  ['CARRION', 'the plains remember red'],
+  ['????',    'stop counting sectors']
+];
+function injectWhisper() {
+  const msg = WHISPER_MESSAGES[Math.floor(Math.random() * WHISPER_MESSAGES.length)];
+  const n = new Date();
+  const t = String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0');
+  const el = document.createElement('div');
+  el.className = 'log-line';
+  el.innerHTML = `<span class="log-time">[${t}]</span><span class="log-src whisper-src">[${msg[0]}]</span><span class="log-msg whisper-msg" id="whisperMsg${logIndex}">${msg[1]}</span>`;
+  logContainer.appendChild(el);
+  while (logContainer.children.length > 6) logContainer.removeChild(logContainer.firstChild);
+  const msgEl = el.querySelector('.whisper-msg');
+  if (msgEl) scrambleText(msgEl, msg[1], 4);
+}
+setTimeout(injectWhisper, 3200 + Math.random() * 5500);
+if (Math.random() < 0.4) setTimeout(injectWhisper, 9500 + Math.random() * 3000);
+
 
 // --- CH2: Anomaly scan flicker ---
 const anomalyEl = document.getElementById('anomalyStatus');
@@ -1202,6 +1418,14 @@ document.querySelectorAll('.glitch-text').forEach(function(el) {
     scrambleText(el, original, 4 + Math.floor(Math.random() * 3));
   }, 5000 + Math.random() * 6000);
 });
+
+// --- CH2: The designation rewrite — Initiate to Patriot ---
+function triggerPatriotReveal() {
+  const el = document.getElementById('patriotWord');
+  if (!el) return;
+  megaCorruptionEvent();
+  scrambleText(el, 'Patriot', 9);
+}
 
 // --- START ---
 buildPlaylist();
