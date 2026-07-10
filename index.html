@@ -712,6 +712,74 @@
     from { transform: translateX(0); }
     to   { transform: translateX(calc(100vw + 180px)); }
   }
+
+  /* === FABLE PASS 3 === */
+  #ekgCanvas {
+    width: 100%;
+    height: 34px;
+    display: block;
+    background: rgba(0,10,4,0.6);
+    border: 1px solid rgba(0,255,136,0.12);
+  }
+  .ekg-bpm { float: right; color: var(--green-dim); }
+  .ekg-bpm.infect { color: var(--infect); text-shadow: 0 0 6px var(--infect-glow); }
+
+  #dlTicker {
+    font-size: 0.62em;
+    letter-spacing: 0.05em;
+    color: var(--green-muted);
+    margin-top: 2px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #dlTicker.active { opacity: 1; }
+  #dlTicker .dl-label { color: var(--amber); }
+  #dlFile { color: var(--green-dim); }
+
+  body.clean-boot #infectionCanvas,
+  body.clean-boot #infectionCore,
+  body.clean-boot #infectionVignette { display: none; }
+
+  #breachOverlay {
+    position: fixed; inset: 0;
+    z-index: 72;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(circle at center, rgba(255,42,60,0.32) 0%, rgba(60,0,8,0.72) 100%);
+  }
+  #breachOverlay.active { animation: breachIn 1.2s ease-out forwards; }
+  @keyframes breachIn { from { opacity: 0; } to { opacity: 1; } }
+
+  #breachText {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    z-index: 73;
+    pointer-events: none;
+    text-align: center;
+    font-family: 'Orbitron', monospace;
+    opacity: 0;
+  }
+  #breachText.active { animation: breachTextIn 0.9s 0.5s ease-out forwards; }
+  @keyframes breachTextIn {
+    from { opacity: 0; transform: translate(-50%,-50%) scale(1.18); filter: blur(7px); }
+    to   { opacity: 1; transform: translate(-50%,-50%) scale(1); filter: none; }
+  }
+  .breach-l1 {
+    font-size: 1.7em;
+    letter-spacing: 0.32em;
+    color: var(--infect);
+    text-shadow: 0 0 18px rgba(255,42,60,0.85), 0 0 40px rgba(255,42,60,0.4);
+  }
+  .breach-l2 {
+    font-size: 0.78em;
+    letter-spacing: 0.5em;
+    color: #ffaab0;
+    margin-top: 0.9em;
+  }
 </style>
 </head>
 <body>
@@ -777,6 +845,7 @@
       <div class="sys-row"><span class="sys-row-key">PLAYER SLOT</span><span class="sys-row-val ok">RESERVED</span></div>
       <div class="sys-row"><span class="sys-row-key">ANOMALY SCAN</span><span class="sys-row-val ok" id="anomalyStatus">CLEAR</span></div>
       <div class="sys-row"><span class="sys-row-key">CONTAINMENT</span><span class="sys-row-val ok" id="containmentStatus">98%</span></div>
+      <div class="sys-row"><span class="sys-row-key">OPERATIVE</span><span class="sys-row-val" id="operativeId">UNREGISTERED</span></div>
     </div>
 
   </div>
@@ -819,12 +888,18 @@
       </div>
     </div>
 
+    <div>
+      <div class="panel-label">// BIOMETRIC FEED <span id="ekgBpm" class="ekg-bpm">-- BPM</span></div>
+      <canvas id="ekgCanvas"></canvas>
+    </div>
+
   </div>
 
   <!-- LOG BAR -->
   <div id="logbar">
     <div class="panel-label" style="margin-bottom:2px">// TERMINAL OUTPUT</div>
     <div id="logLines"></div>
+    <div id="dlTicker"><span class="dl-label">RETRIEVING ▸</span> <span id="dlFile"></span></div>
   </div>
 
   <!-- FOOTER -->
@@ -888,6 +963,11 @@
 <canvas id="staticNoise"></canvas>
 <div id="blackoutOverlay"></div>
 <div id="blackoutGlow"><span></span></div>
+<div id="breachOverlay"></div>
+<div id="breachText">
+  <div class="breach-l1">SIGNAL TRANSFER COMPLETE</div>
+  <div class="breach-l2" id="breachL2"></div>
+</div>
 
 <script>
 // ============================================================
@@ -912,6 +992,16 @@ let currentTrack = 0;
 let isPlaying    = false;
 let loadStart    = Date.now();
 let corruptionAudioVisual = false;
+
+// --- FABLE PASS 3: core flags ---
+// ~3% of loads boot "clean" — pristine terminal, infection arrives violently mid-load
+const CLEAN_BOOT = Math.random() < 0.03;
+let infectionActive = !CLEAN_BOOT;
+let breachFired = false;
+let ekgFlatUntil = 0;
+if (CLEAN_BOOT) document.body.classList.add('clean-boot');
+// GMod substitutes %s in sv_loadingurl — set it to ".../?steamid=%s" to enable
+const STEAM_ID = new URLSearchParams(location.search).get('steamid') || null;
 
 // --- Clock ---
 function updateClock() {
@@ -1077,6 +1167,7 @@ const rogueBlip = {
   visible: true, size: 2.4, nextShiftAt: Date.now()+3500+Math.random()*4000
 };
 function updateRogueBlip() {
+  if (!infectionActive) { rogueBlip.visible = false; return; }
   const now = Date.now();
   if (now > rogueBlip.nextShiftAt) {
     rogueBlip.visible = !rogueBlip.visible;
@@ -1308,7 +1399,19 @@ function GameDetails(servName,serverURL,mapName) {
   document.getElementById('footerStatus').textContent = 'MAP: '+mapName;
 }
 function SetStatusChanged(status) { addLog('GMOD',status,'ok'); }
-function DownloadingFile(fileName) { addLog('DL',fileName,''); }
+let dlCount = 0, dlHideTimer = null;
+function DownloadingFile(fileName) {
+  dlCount++;
+  if (dlCount === 1) addLog('DL', 'Receiving content pack from node...', '');
+  const tick = document.getElementById('dlTicker');
+  const f = document.getElementById('dlFile');
+  if (f) f.textContent = '[' + dlCount + '] ' + fileName;
+  if (tick) {
+    tick.classList.add('active');
+    clearTimeout(dlHideTimer);
+    dlHideTimer = setTimeout(function() { tick.classList.remove('active'); }, 2000);
+  }
+}
 let actualProgress = 0;
 let hasRealProgress = false;
 function LoadingProgress(progress) {
@@ -1543,6 +1646,7 @@ function loadFraction() {
 }
 
 function triggerGlitch() {
+  if (!infectionActive) return;
   const sel = glitchTargets[Math.floor(Math.random() * glitchTargets.length)];
   const el = document.querySelector(sel);
   if (el) {
@@ -1642,6 +1746,7 @@ function duplicateNode() {
 }
 
 function blackoutBeat() {
+  ekgFlatUntil = Date.now() + 750;
   const bo = document.getElementById('blackoutOverlay');
   const bg = document.getElementById('blackoutGlow');
   if (!bo || !bg) return;
@@ -1655,6 +1760,7 @@ function blackoutBeat() {
 
 let containmentDip = 0;
 function megaCorruptionEvent() {
+  if (!infectionActive) return;
   const root = document.getElementById('root');
   root.classList.add('mega-corrupt');
   setTimeout(function() { root.classList.remove('mega-corrupt'); }, 850);
@@ -1711,13 +1817,13 @@ function updatePalette(frac, now) {
   lastPaletteAt = now;
   // ease in: palette holds mostly-green early, decays hard past halfway,
   // capped at 0.85 so the terminal never fully loses its identity
-  const t = Math.min(0.85, Math.pow(frac, 1.6));
+  const t = Math.min(0.85, Math.pow(infectionActive ? frac : 0, 1.6));
   const rootStyle = document.documentElement.style;
   for (const varName in PALETTE_RAMPS) {
     rootStyle.setProperty(varName, rampColor(PALETTE_RAMPS[varName], t));
   }
-  rootStyle.setProperty('--scanline-opacity', (0.06 + frac * 0.07).toFixed(3));
-  if (!sealSickened && frac > 0.6) {
+  rootStyle.setProperty('--scanline-opacity', (0.06 + (infectionActive ? frac : 0) * 0.07).toFixed(3));
+  if (!sealSickened && infectionActive && frac > 0.6) {
     sealSickened = true;
     const seal = document.querySelector('.bos-seal');
     if (seal) seal.classList.add('sickened');
@@ -1732,13 +1838,14 @@ function updatePalette(frac, now) {
 function updateInfectionIntensity() {
   const frac = loadFraction();
   const now = Date.now();
-  const intensity = 0.12 + frac * 0.5;
+  const eff = infectionActive ? frac : 0;
+  const intensity = 0.12 + eff * 0.5;
   document.documentElement.style.setProperty('--infection-intensity', intensity.toFixed(2));
   updatePalette(frac, now);
   updateEyeTracking(now);
   containmentDip *= 0.94;
   if (containmentEl) {
-    const base = 98 - frac * 70 - Math.sin(frac * 14) * 3;
+    const base = 98 - eff * 70 - Math.sin(eff * 14) * 3;
     const pct = Math.max(3, Math.round(base - containmentDip));
     containmentEl.textContent = pct + '%';
     containmentEl.className = 'sys-row-val ' + (pct > 65 ? 'ok' : pct > 35 ? 'warn' : 'infect blink');
@@ -1750,6 +1857,7 @@ requestAnimationFrame(updateInfectionIntensity);
 
 // --- CH2: Sub-bar infection creep ---
 function creepBarInfection(id, holdMs) {
+  if (!infectionActive) return;
   const el = document.getElementById(id);
   if (!el) return;
   el.style.width = '55%';
@@ -1765,8 +1873,9 @@ const WHISPER_MESSAGES = [
   ['CARRION', 'the plains remember red'],
   ['????',    'stop counting sectors']
 ];
-function injectWhisper() {
-  const msg = WHISPER_MESSAGES[Math.floor(Math.random() * WHISPER_MESSAGES.length)];
+function injectWhisper(custom) {
+  if (!infectionActive) return;
+  const msg = custom || WHISPER_MESSAGES[Math.floor(Math.random() * WHISPER_MESSAGES.length)];
   const n = new Date();
   const t = String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0');
   const el = document.createElement('div');
@@ -1782,6 +1891,7 @@ if (Math.random() < 0.4) scheduleAt(0.66 + Math.random() * 0.1, injectWhisper);
 
 // --- CH2: Session key easter egg ---
 function sessionKeyEasterEgg() {
+  if (!infectionActive) return;
   const el = document.getElementById('sessKey');
   if (!el) return;
   const original = el.textContent;
@@ -1853,6 +1963,7 @@ scheduleAt(0.70, function() {
 
 // --- FABLE PASS: permanent character decay in static labels ---
 function permanentDecay() {
+  if (!infectionActive) return;
   const targets = document.querySelectorAll('.panel-label, .footer-right');
   if (!targets.length) return;
   const el = targets[Math.floor(Math.random() * targets.length)];
@@ -1884,6 +1995,7 @@ document.addEventListener('mousemove', function(e) {
   eyeMouseX = e.clientX; eyeMouseY = e.clientY; lastEyeMouseMove = Date.now();
 });
 function updateEyeTracking(now) {
+  if (breachFired) return;
   if (now - lastEyeUpdate < 70) return;
   lastEyeUpdate = now;
   const pg = document.querySelector('.eye-pupil-group');
@@ -1905,6 +2017,7 @@ function updateEyeTracking(now) {
 
 // --- Corruption sweep: a wave that glitches everything it passes over ---
 function corruptionSweep() {
+  if (!infectionActive) return;
   const bar = document.createElement('div');
   bar.className = 'corruption-sweep';
   document.body.appendChild(bar);
@@ -1925,6 +2038,7 @@ scheduleAt(0.62 + Math.random() * 0.05, corruptionSweep);
 
 // --- History rewrite: already-printed log lines get retroactively corrupted ---
 function rewriteHistory() {
+  if (!infectionActive) return;
   const msgs = Array.prototype.slice.call(logContainer.querySelectorAll('.log-msg'))
     .filter(function(el) { return el.children.length === 0 && el.textContent.length > 4; });
   if (!msgs.length) return;
@@ -1961,10 +2075,122 @@ function logoTakeover() {
 }
 scheduleAt(0.95, logoTakeover);
 
+// === FABLE PASS 3 ===
+
+// --- SteamID personalization (sv_loadingurl ".../?steamid=%s") ---
+if (STEAM_ID) {
+  const opEl = document.getElementById('operativeId');
+  if (opEl) { opEl.textContent = STEAM_ID; opEl.className = 'sys-row-val ok'; }
+}
+scheduleAt(0.10, function() {
+  addLog('AUTH', STEAM_ID ? 'Operative ident confirmed: ' + STEAM_ID : 'Operative ident: UNREGISTERED', STEAM_ID ? 'ok' : 'warn');
+});
+if (STEAM_ID) {
+  scheduleAt(0.52 + Math.random() * 0.08, function() {
+    injectWhisper(['????', 'we see you, ' + STEAM_ID]);
+  });
+}
+
+// --- EKG biometric feed ---
+const ekgCanvas = document.getElementById('ekgCanvas');
+const ectx = ekgCanvas ? ekgCanvas.getContext('2d') : null;
+let ekgBuf = [], ekgPhase = 0, ekgPrevW = 0, lastBpmTextAt = 0;
+function ekgSample(p, agitation) {
+  const g = function(c, w, a) { return a * Math.exp(-Math.pow((p - c) * w, 2)); };
+  let v = g(0.08, 60, -0.18) + g(0.12, 90, 1.0) + g(0.16, 70, -0.28) + g(0.38, 22, 0.16);
+  v += (Math.random() - 0.5) * 0.04 * (1 + agitation * 3);
+  if (agitation > 0 && Math.random() < 0.06 * agitation) v += (Math.random() - 0.5) * 1.3;
+  return v;
+}
+function drawEKG() {
+  if (!ectx) return;
+  const w = ekgCanvas.offsetWidth || 220, h = ekgCanvas.offsetHeight || 34;
+  if (w !== ekgPrevW) {
+    ekgCanvas.width = w; ekgCanvas.height = h;
+    ekgBuf = new Array(w).fill(0);
+    ekgPrevW = w;
+  }
+  const frac = loadFraction();
+  const now = Date.now();
+  let bpm = infectionActive ? 62 + frac * 70 : 64;
+  const agit = (corruptionAudioVisual ? 1 : 0) + (breachFired ? 2 : 0);
+  if (corruptionAudioVisual) bpm += 45;
+  if (breachFired) bpm = 176;
+  const flat = now < ekgFlatUntil;
+  ekgPhase = (ekgPhase + bpm / 3600) % 1;
+  ekgBuf.push(flat ? (Math.random() - 0.5) * 0.01 : ekgSample(ekgPhase, agit));
+  ekgBuf.shift();
+  ectx.clearRect(0, 0, w, h);
+  const col = rampColor(PALETTE_RAMPS['--green'], Math.min(0.85, Math.pow(infectionActive ? frac : 0, 1.6)));
+  ectx.strokeStyle = col;
+  ectx.lineWidth = 1.2;
+  ectx.shadowColor = col;
+  ectx.shadowBlur = 4;
+  ectx.beginPath();
+  for (let x = 0; x < w; x++) {
+    const y = h * 0.68 - ekgBuf[x] * h * 0.5;
+    if (x) ectx.lineTo(x, y); else ectx.moveTo(x, y);
+  }
+  ectx.stroke();
+  ectx.shadowBlur = 0;
+  if (now - lastBpmTextAt > 350) {
+    lastBpmTextAt = now;
+    const bpmEl = document.getElementById('ekgBpm');
+    if (bpmEl) {
+      bpmEl.textContent = flat ? '—— SIGNAL LOST' : Math.round(bpm) + ' BPM';
+      bpmEl.className = 'ekg-bpm' + ((flat || agit || bpm > 105) ? ' infect' : '');
+    }
+  }
+  requestAnimationFrame(drawEKG);
+}
+requestAnimationFrame(drawEKG);
+
+// --- Clean boot: the infection ARRIVES ---
+function breachArrival() {
+  if (!CLEAN_BOOT || infectionActive) return;
+  infectionActive = true;
+  infProgress = Math.max(infProgress, 0.5);
+  blackoutBeat();
+  setTimeout(function() {
+    document.body.classList.remove('clean-boot');
+    megaCorruptionEvent();
+    corruptionSweep();
+    injectWhisper(['????', 'it was already inside']);
+  }, 500);
+}
+scheduleAt(0.30 + Math.random() * 0.14, breachArrival);
+
+// --- 100%: the breach finale ---
+function breachFinale() {
+  if (breachFired || !infectionActive) return;
+  breachFired = true;
+  systemStage('HOST ACCEPTED', 'fail-stage', true);
+  const pupil = document.querySelector('.eye-pupil-group');
+  if (pupil) {
+    pupil.classList.add('tracking'); // kills the dart animation
+    pupil.style.transformBox = 'fill-box';
+    pupil.style.transformOrigin = 'center';
+    pupil.style.transform = 'scale(2.4,1.5)';
+  }
+  blackoutBeat();
+  spawnGlitchBars(14);
+  burstStatic(1);
+  setTimeout(function() {
+    const ov = document.getElementById('breachOverlay');
+    const bt = document.getElementById('breachText');
+    if (ov) ov.classList.add('active');
+    if (bt) bt.classList.add('active');
+    const l2 = document.getElementById('breachL2');
+    if (l2) morphText(l2, '', 'OH TO BE LIKE YOU', 9);
+  }, 450);
+}
+scheduleAt(0.985, breachFinale);
+
 
 // --- CH2: Anomaly scan flicker ---
 const anomalyEl = document.getElementById('anomalyStatus');
 function flickerAnomaly() {
+  if (!infectionActive) return;
   if (!anomalyEl) return;
   anomalyEl.textContent = 'UNKNOWN SIGNATURE — CARRION';
   anomalyEl.className = 'sys-row-val infect blink';
@@ -1999,6 +2225,7 @@ function scrambleText(el, original, cycles) {
 document.querySelectorAll('.glitch-text').forEach(function(el) {
   const original = el.textContent;
   setInterval(function() {
+    if (!infectionActive) return;
     scrambleText(el, original, 4 + Math.floor(Math.random() * 3));
   }, 5000 + Math.random() * 6000);
 });
