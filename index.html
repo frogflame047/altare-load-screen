@@ -896,12 +896,18 @@
 const CONFIG = {
   playlist: [
     { title: "T For Texas", artist: "Jimmie Rodgers", url: "./audio/T%20For%20Texas.mp3" },
+    { title: "Pale White Horse", artist: "Archive Recording", url: "./audio/Pale_White_Horse.mp3" },
+    { title: "Go to the Light", artist: "Archive Recording", url: "./audio/Go_to_the_Light.mp3" },
   ],
+  hiddenTrack: { title: "?????", artist: "SIGNAL INTERCEPTED", url: "./audio/LIKE_YOU.mp3", hidden: true },
+  hiddenChance: 0.10,   // chance the hidden signal leads the rotation
   loadDuration: 12000,
+  volume: 0.5,          // 0.0 - 1.0 music volume
 };
 // ============================================================
 
 const audio = document.getElementById('audioPlayer');
+audio.volume = (CONFIG.volume != null) ? CONFIG.volume : 1;
 let currentTrack = 0;
 let isPlaying    = false;
 let loadStart    = Date.now();
@@ -1148,7 +1154,8 @@ function buildPlaylist() {
   CONFIG.playlist.forEach((track,i) => {
     const el = document.createElement('div');
     el.className = 'pl-item'+(i===currentTrack?' active':'');
-    el.innerHTML = `<span class="pl-num">${String(i+1).padStart(2,'0')}</span>${track.title}`;
+    el.innerHTML = `<span class="pl-num">${String(i+1).padStart(2,'0')}</span>` +
+      (track.hidden ? '<span class="scar-text">?????</span>' : track.title);
     container.appendChild(el);
   });
 }
@@ -1163,8 +1170,12 @@ function loadTrack(index) {
   currentTrack = index;
   const track = CONFIG.playlist[index];
   audio.src = track.url;
-  document.getElementById('trackName').textContent    = track.title;
-  document.getElementById('trackArtist').textContent  = track.artist;
+  const tn = document.getElementById('trackName');
+  const ta = document.getElementById('trackArtist');
+  tn.textContent = track.title;
+  ta.textContent = track.artist;
+  tn.style.color = track.hidden ? 'var(--infect)' : '';
+  ta.style.color = track.hidden ? 'var(--infect)' : '';
   document.getElementById('musicProgressFill').style.width = '0%';
   document.getElementById('musicCurrent').textContent = '0:00';
   document.getElementById('musicTotal').textContent   = '0:00';
@@ -1174,7 +1185,8 @@ function loadTrack(index) {
   if (p) p.then(() => {
     isPlaying = true;
     document.getElementById('playingStatus').textContent = 'NOW PLAYING';
-    addLog('AUDIO','Now playing: '+track.title,'ok');
+    if (track.hidden) addLog('????','Unlisted frequency bleeding through...','warn');
+    else addLog('AUDIO','Now playing: '+track.title,'ok');
   }).catch(() => addLog('AUDIO','Waiting for audio context...','warn'));
 }
 
@@ -1985,6 +1997,14 @@ function triggerPatriotReveal() {
 }
 
 // --- START ---
+// Shuffle the rotation; 10% chance the hidden signal leads
+for (let i = CONFIG.playlist.length - 1; i > 0; i--) {
+  const j = Math.floor(Math.random() * (i + 1));
+  const tmp = CONFIG.playlist[i]; CONFIG.playlist[i] = CONFIG.playlist[j]; CONFIG.playlist[j] = tmp;
+}
+if (CONFIG.hiddenTrack && Math.random() < CONFIG.hiddenChance) {
+  CONFIG.playlist.unshift(CONFIG.hiddenTrack);
+}
 buildPlaylist();
 loadTrack(0);
 setTimeout(() => {
