@@ -995,7 +995,7 @@ let corruptionAudioVisual = false;
 
 // --- FABLE PASS 3: core flags ---
 // ~3% of loads boot "clean" — pristine terminal, infection arrives violently mid-load
-const CLEAN_BOOT = Math.random() < 0.03;
+const CLEAN_BOOT = Math.random() < 0.20;
 let infectionActive = !CLEAN_BOOT;
 let breachFired = false;
 let ekgFlatUntil = 0;
