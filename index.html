@@ -896,10 +896,10 @@
 const CONFIG = {
   playlist: [
     { title: "T For Texas", artist: "Jimmie Rodgers", url: "./audio/T%20For%20Texas.mp3" },
-    { title: "Pale White Horse", artist: "Archive Recording", url: "./audio/Pale_White_Horse.mp3" },
-    { title: "Go to the Light", artist: "Archive Recording", url: "./audio/Go_to_the_Light.mp3" },
+    { title: "Pale White Horse", artist: "Archive Recording", url: "./audio/Pale%20White%20Horse.mp3" },
+    { title: "Go to the Light", artist: "Archive Recording", url: "./audio/Go%20to%20the%20Light.mp3" },
   ],
-  hiddenTrack: { title: "?????", artist: "SIGNAL INTERCEPTED", url: "./audio/LIKE_YOU.mp3", hidden: true },
+  hiddenTrack: { title: "?????", artist: "SIGNAL INTERCEPTED", url: "./audio/LIKE%20YOU.mp3", hidden: true },
   hiddenChance: 0.10,   // chance the hidden signal leads the rotation
   loadDuration: 12000,
   volume: 0.5,          // 0.0 - 1.0 music volume
@@ -1198,6 +1198,21 @@ audio.addEventListener('timeupdate', () => {
   document.getElementById('musicTotal').textContent   = formatTime(audio.duration);
 });
 audio.addEventListener('ended', () => loadTrack((currentTrack+1)%CONFIG.playlist.length));
+
+// --- Error recovery: a missing/broken track logs itself and skips ahead ---
+let audioErrorSkips = 0;
+audio.addEventListener('error', () => {
+  const track = CONFIG.playlist[currentTrack];
+  addLog('AUDIO', 'Track failed to load: ' + (track ? track.title + ' (' + track.url + ')' : 'unknown'), 'err');
+  isPlaying = false;
+  if (audioErrorSkips < CONFIG.playlist.length - 1) {
+    audioErrorSkips++;
+    setTimeout(() => loadTrack((currentTrack + 1) % CONFIG.playlist.length), 800);
+  } else {
+    document.getElementById('playingStatus').textContent = 'SIGNAL LOST';
+  }
+});
+audio.addEventListener('playing', () => { audioErrorSkips = 0; });
 audio.addEventListener('pause', () => {
   isPlaying = false;
   document.getElementById('playingStatus').textContent = 'BUFFERING...';
